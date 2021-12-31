@@ -171,15 +171,30 @@ fn intersect(bodies: &[Body], i: usize, j: usize) -> Option<Contact> {
 
 fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
     let vec_impulse_j:Vec3;
+    let pt_on_a = contact.pt_on_a_world_space;
+    let pt_on_b = contact.pt_on_b_world_space;
     {
         let (a, b) = (&bodies[contact.body_a], &bodies[contact.body_b]);
-        let vab = a.linear_veclocity - b.linear_veclocity;
         let elasticity = a.elasticity * b.elasticity;
-        let impulse_j = -(1. + elasticity) * vab.dot(contact.normal) / (a.inv_mass + b.inv_mass);
-        vec_impulse_j = contact.normal * impulse_j;
+        let inv_world_inertia_a = a.get_inverse_inertial_tensor_world_space();
+        let inv_world_inertia_b = b.get_inverse_inertial_tensor_world_space();
+        let n = contact.normal;
+        let ra = pt_on_a - a.get_centre_of_mass_world_space();
+        let rb = pt_on_b - b.get_centre_of_mass_world_space();
+        let angular_ja = (inv_world_inertia_a * ra.cross(n)).cross(ra);
+        let angular_jb = (inv_world_inertia_b * rb.cross(n)).cross(rb);
+        let angular_factor = (angular_ja + angular_jb).dot(n);
+
+        let vel_a = a.linear_veclocity + a.angular_veclocity.cross(ra);
+        let vel_b = b.linear_veclocity + b.angular_veclocity.cross(rb);
+
+        let vab = vel_a - vel_b;
+        let impulse_j = (1. + elasticity) * vab.dot(contact.normal) /
+            (a.inv_mass + b.inv_mass + angular_factor);
+        vec_impulse_j = n * impulse_j;
     }
-    bodies[contact.body_a].apply_impluse_linear(vec_impulse_j);
-    bodies[contact.body_b].apply_impluse_linear(vec_impulse_j * -1.);
+    bodies[contact.body_a].apply_impulse(pt_on_a, vec_impulse_j * -1.);
+    bodies[contact.body_b].apply_impulse(pt_on_b, vec_impulse_j * 1.);
 
     // move colliders to just outside each other but keeping combined centre of
     // mass constant
