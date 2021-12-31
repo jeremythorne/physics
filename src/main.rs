@@ -6,6 +6,7 @@ struct Sphere {
     color: Color
 }
 
+#[derive(PartialEq)]
 enum Shape {
     Sphere
 }
@@ -150,28 +151,104 @@ struct Contact {
     body_b: usize
 }
 
-fn intersect(bodies: &[Body], i: usize, j: usize) -> Option<Contact> {
-    let (a, b) = (&bodies[i], &bodies[j]);
-    let ab = b.position - a.position;
-    let radius_ab = b.radius() + a.radius();
-    if ab.length_squared() <= radius_ab * radius_ab {
-        let normal = ab.normalize();
-        let pt_on_a_world_space = a.position + normal * a.radius();
-        let pt_on_b_world_space = b.position - normal * b.radius();
-        Some(Contact {
-            pt_on_a_world_space,
-            pt_on_b_world_space,
-            pt_on_a_local_space: Vec3::ZERO,
-            pt_on_b_local_space: Vec3::ZERO,
-            normal, 
-            separation_distance: 0.,
-            time_of_impact: 0.,
-            body_a: i,
-            body_b: j
-        })
-    } else {
-        None
+fn ray_sphere(ray_start:Vec3, ray_dir:Vec3, sphere_centre:Vec3, radius:f32) -> 
+        Option<(f32, f32)> {
+    let m = sphere_centre - ray_start;
+    let a = ray_dir.dot(ray_dir);
+    let b = m.dot(ray_dir);
+    let c = m.dot(m) - radius * radius;
+    let delta = b * b - a * c;
+    let inv_a = 1. / a;
+    if delta < 0. {
+        return None;
     }
+    let delta_root = delta.sqrt();
+    let t1 = inv_a * (b - delta_root);
+    let t2 = inv_a * (b + delta_root);
+    Some((t1, t2))
+}
+
+fn sphere_sphere_dynamic(shape_a:&dyn Shaped, shape_b:&dyn Shaped, pos_a:Vec3, pos_b:Vec3, 
+    vel_a:Vec3, vel_b:Vec3, dt:f32) ->
+        Option<(Vec3, Vec3, f32)> {
+
+    let relative_velocity = vel_a - vel_b;
+    let ray_dir = relative_velocity * dt;
+    let mut t0 = 0.;
+    let mut t1 = 0.;
+    if ray_dir.length_squared() < 0.001 * 0.001 {
+        let ab = pos_b - pos_a;
+        let radius = shape_a.radius() + shape_b.radius() + 0.001;
+        if ab.length_squared() > radius * radius {
+            return None;
+        }
+    } else {
+        if let Some(x) = ray_sphere(pos_a, ray_dir, pos_b, shape_a.radius() + shape_b.radius()) {
+            t0 = x.0;
+            t1 = x.1;
+        } else {
+            return None;
+        }
+    }
+    t0 *= dt;
+    t1 *= dt;
+    if t1 < 0. {
+        return None;
+    }
+    let time_of_impact = t0.max(0.);
+    if time_of_impact > dt {
+        return None;
+    }
+
+    let new_pos_a = pos_a + vel_a * time_of_impact;
+    let new_pos_b = pos_b + vel_b * time_of_impact;
+    let ab = (new_pos_b - new_pos_a).normalize();
+
+    let pt_on_a = new_pos_a + ab * shape_a.radius();
+    let pt_on_b = new_pos_b - ab * shape_b.radius();
+
+    Some((pt_on_a, pt_on_b, time_of_impact))
+}
+
+fn intersect(bodies: &mut [Body], i: usize, j: usize, dt:f32) -> Option<Contact> {
+    let (a, b) = (&bodies[i], &bodies[j]);
+    if a.shape.shape_type() == Shape::Sphere &&
+            b.shape.shape_type() == Shape::Sphere {
+        if let Some(x) = sphere_sphere_dynamic(
+                &*a.shape, &*b.shape, a.position, b.position,
+                a.linear_veclocity,
+                b.linear_veclocity, dt) {
+            let pt_on_a_world_space = x.0;
+            let pt_on_b_world_space = x.1;
+            let time_of_impact = x.2;
+            let ab = b.position - a.position;
+            let separation_distance = ab.length() - (a.radius() + b.radius());
+            // step forward to calculate local coords
+            bodies[i].update(time_of_impact);
+            bodies[j].update(time_of_impact);
+            let (a, b) = (&bodies[i], &bodies[j]);
+            let pt_on_a_local_space = a.world_space_to_body_space(pt_on_a_world_space);
+            let pt_on_b_local_space = b.world_space_to_body_space(pt_on_b_world_space);
+            let normal = (a.position - b.position).normalize();
+            // step backward
+            bodies[i].update(-time_of_impact);
+            bodies[j].update(-time_of_impact);
+            return Some(Contact {
+                pt_on_a_world_space,
+                pt_on_b_world_space,
+                pt_on_a_local_space,
+                pt_on_b_local_space,
+                normal,
+                separation_distance,
+                time_of_impact,
+                body_a: i,
+                body_b: j
+            });
+        } else {
+            return None;
+        }
+    }
+    None
 }
 
 fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
@@ -271,7 +348,7 @@ impl Scene {
                 if a.inv_mass == 0. && b.inv_mass == 0. {
                     continue
                 }
-                if let Some(contact) = intersect(&self.bodies[..], i, j) {
+                if let Some(contact) = intersect(&mut self.bodies[..], i, j, dt_sec) {
                     resolve_contact(&mut self.bodies[..], &contact);
                 }
             }
