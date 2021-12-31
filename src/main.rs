@@ -125,8 +125,12 @@ impl Body {
     fn radius(&self) -> f32 {
         self.shape.radius()
     }
-    fn draw(&self, texture:Texture2D) {
-        self.shape.draw(self.position, texture);
+    fn draw(&self, gl: &mut QuadGl, texture:Texture2D) {
+        gl.push_model_matrix(
+            Mat4::from_translation(self.position) *
+            Mat4::from_quat(self.orientation));
+        self.shape.draw(Vec3::ZERO, texture);
+        gl.pop_model_matrix();
     }
 }
 
@@ -246,7 +250,7 @@ impl Scene {
                 angular_veclocity: Vec3::ZERO,
                 inv_mass: 0.,
                 elasticity: 1.,
-                friction: 0.,
+                friction: 0.5,
                 shape: Box::new(Sphere{radius:1000., color:GREEN})
             }
         );        Scene {
@@ -278,9 +282,9 @@ impl Scene {
         }
    }
 
-    fn draw(&self, texture: Texture2D) {
+    fn draw(&self, gl: &mut QuadGl, texture: Texture2D) {
         for body in &self.bodies {
-            body.draw(texture);
+            body.draw(gl, texture);
         }
     }
 }
@@ -307,7 +311,8 @@ async fn main() {
 
         draw_grid(20, 1., BLACK, GRAY);
 
-        scene.draw(texture);
+        let gl = unsafe { get_internal_gl().quad_gl };
+        scene.draw(gl, texture);
         // Back to screen space, render some text
 
         set_default_camera();
