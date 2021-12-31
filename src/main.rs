@@ -96,6 +96,31 @@ impl Body {
             self.angular_veclocity = self.angular_veclocity.normalize() * max_angular_speed;
         }
     }
+    fn apply_impulse(&mut self, impulse_point:Vec3, impulse:Vec3) {
+        if self.inv_mass == 0. {
+            return;
+        }
+        self.apply_impluse_linear(impulse);
+        let r = impulse_point - self.get_centre_of_mass_world_space();
+        self.apply_impluse_angular(r.cross(impulse));         
+    }
+    fn update(&mut self, dt_sec:f32) {
+        self.position += self.linear_veclocity * dt_sec;
+
+        let position_cm = self.get_centre_of_mass_world_space();
+        let cm_to_pos = self.position - position_cm;
+        let orient = Mat3::from_quat(self.orientation);
+        let inertial_tensor = orient * self.shape.inertial_tensor() * orient.transpose();
+        let alpha = inertial_tensor.inverse() *
+            self.angular_veclocity.cross(inertial_tensor * self.angular_veclocity);
+        self.angular_veclocity += alpha * dt_sec;
+
+        let d_angle = self.angular_veclocity * dt_sec;
+        let d_q = Quat::from_scaled_axis(d_angle);
+        self.orientation = (d_q * self.orientation).normalize();
+
+        self.position = position_cm + d_q.mul_vec3(cm_to_pos); 
+    }
     fn radius(&self) -> f32 {
         self.shape.radius()
     }
@@ -215,7 +240,7 @@ impl Scene {
         }
 
         for body in &mut self.bodies {
-            body.position += body.linear_veclocity * dt_sec;
+            body.update(dt_sec);
         }
    }
 
