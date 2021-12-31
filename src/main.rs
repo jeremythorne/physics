@@ -13,6 +13,7 @@ enum Shape {
 trait Shaped {
     fn shape_type(&self) -> Shape;
     fn get_centre_of_mass(&self) -> Vec3;
+    fn inertial_tensor(&self) -> Mat3;
     fn radius(&self) -> f32;
     fn as_any(&self) -> &dyn Any;
     fn draw(&self, pos:Vec3);
@@ -25,6 +26,11 @@ impl Shaped for Sphere {
 
     fn get_centre_of_mass(&self) -> Vec3 {
         Vec3::ZERO
+    }
+
+    fn inertial_tensor(&self) -> Mat3 {
+        let f = 2. * self.radius * self.radius() / 5.;
+        Mat3::from_diagonal(Vec3::new(f, f, f))
     }
 
     fn radius(&self) -> f32 {
@@ -44,6 +50,7 @@ struct Body {
     position: Vec3,
     orientation: Quat,
     linear_veclocity: Vec3,
+    angular_veclocity: Vec3,
     inv_mass: f32,
     elasticity: f32,
     shape: Box<dyn Shaped>
@@ -65,11 +72,29 @@ impl Body {
         self.get_centre_of_mass_world_space() +
             self.orientation.mul_vec3(body_pt)
     }
+    fn get_inverse_inertial_tensor_body_space(&self) -> Mat3 {
+        self.shape.inertial_tensor().inverse() * self.inv_mass
+    }
+    fn get_inverse_inertial_tensor_world_space(&self) -> Mat3 {
+        let inv_t = self.get_inverse_inertial_tensor_body_space();
+        let orient = Mat3::from_quat(self.orientation);
+        orient * inv_t * orient.transpose()
+    }
     fn apply_impluse_linear(&mut self, impulse:Vec3) {
         if self.inv_mass == 0. {
             return;
         }
         self.linear_veclocity += impulse * self.inv_mass;
+    }
+    fn apply_impluse_angular(&mut self, impulse:Vec3) {
+        if self.inv_mass == 0. {
+            return;
+        }
+        self.angular_veclocity += self.get_inverse_inertial_tensor_world_space() * impulse;
+        let max_angular_speed = 30.;
+        if self.angular_veclocity.length_squared() > max_angular_speed * max_angular_speed {
+            self.angular_veclocity = self.angular_veclocity.normalize() * max_angular_speed;
+        }
     }
     fn radius(&self) -> f32 {
         self.shape.radius()
@@ -149,6 +174,7 @@ impl Scene {
                 position: Vec3::new(0., 10., 0.),
                 orientation: Quat::IDENTITY,
                 linear_veclocity: Vec3::ZERO,
+                angular_veclocity: Vec3::ZERO,
                 inv_mass: 1.,
                 elasticity: 0.5,
                 shape: Box::new(Sphere{radius:1., color:BLUE})
@@ -159,6 +185,7 @@ impl Scene {
                 position: Vec3::new(0., -1000., 0.),
                 orientation: Quat::IDENTITY,
                 linear_veclocity: Vec3::ZERO,
+                angular_veclocity: Vec3::ZERO,
                 inv_mass: 0.,
                 elasticity: 1.,
                 shape: Box::new(Sphere{radius:1000., color:GREEN})
