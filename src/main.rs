@@ -16,7 +16,7 @@ trait Shaped {
     fn inertial_tensor(&self) -> Mat3;
     fn radius(&self) -> f32;
     fn as_any(&self) -> &dyn Any;
-    fn draw(&self, pos:Vec3);
+    fn draw(&self, pos:Vec3, texture:Texture2D);
 }
 
 impl Shaped for Sphere {
@@ -41,8 +41,8 @@ impl Shaped for Sphere {
         self
     }
 
-    fn draw(&self, pos: Vec3) {
-        draw_sphere(pos, self.radius, None, self.color);
+    fn draw(&self, pos: Vec3, texture:Texture2D) {
+        draw_sphere(pos, self.radius, texture, self.color);
     }
 }
 
@@ -53,6 +53,7 @@ struct Body {
     angular_veclocity: Vec3,
     inv_mass: f32,
     elasticity: f32,
+    friction: f32,
     shape: Box<dyn Shaped>
 }
 
@@ -124,8 +125,8 @@ impl Body {
     fn radius(&self) -> f32 {
         self.shape.radius()
     }
-    fn draw(&self) {
-        self.shape.draw(self.position);
+    fn draw(&self, texture:Texture2D) {
+        self.shape.draw(self.position, texture);
     }
 }
 
@@ -171,6 +172,7 @@ fn intersect(bodies: &[Body], i: usize, j: usize) -> Option<Contact> {
 
 fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
     let vec_impulse_j:Vec3;
+    let impulse_friction:Vec3;
     let pt_on_a = contact.pt_on_a_world_space;
     let pt_on_b = contact.pt_on_b_world_space;
     {
@@ -192,9 +194,24 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
         let impulse_j = (1. + elasticity) * vab.dot(contact.normal) /
             (a.inv_mass + b.inv_mass + angular_factor);
         vec_impulse_j = n * impulse_j;
+
+        let friction = a.friction * b.friction;
+        let vel_norm = n * n.dot(vab);
+        let vel_tang = vab - vel_norm;
+        let relative_vel_tang = vel_tang.normalize();
+
+        let inertia_a = (inv_world_inertia_a * ra.cross(relative_vel_tang)).cross(ra);
+        let inertia_b = (inv_world_inertia_b * rb.cross(relative_vel_tang)).cross(rb);
+        let inv_inertia = (inertia_a + inertia_b).dot(relative_vel_tang);
+
+        let reduced_mass = 1. / (a.inv_mass + b.inv_mass + inv_inertia);
+        impulse_friction = vel_tang * reduced_mass * friction;
     }
     bodies[contact.body_a].apply_impulse(pt_on_a, vec_impulse_j * -1.);
     bodies[contact.body_b].apply_impulse(pt_on_b, vec_impulse_j * 1.);
+    bodies[contact.body_a].apply_impulse(pt_on_a, impulse_friction * -1.);
+    bodies[contact.body_b].apply_impulse(pt_on_b, impulse_friction * 1.);
+
 
     // move colliders to just outside each other but keeping combined centre of
     // mass constant
@@ -211,12 +228,13 @@ impl Scene {
         let mut bodies = Vec::<Body>::new();
         bodies.push(
             Body {
-                position: Vec3::new(0., 10., 0.),
+                position: Vec3::new(0., 1., 0.),
                 orientation: Quat::IDENTITY,
-                linear_veclocity: Vec3::ZERO,
+                linear_veclocity: Vec3::new(0., 0., 1.),
                 angular_veclocity: Vec3::ZERO,
                 inv_mass: 1.,
-                elasticity: 0.5,
+                elasticity: 0.,
+                friction: 0.9,
                 shape: Box::new(Sphere{radius:1., color:BLUE})
             }
         );
@@ -228,6 +246,7 @@ impl Scene {
                 angular_veclocity: Vec3::ZERO,
                 inv_mass: 0.,
                 elasticity: 1.,
+                friction: 0.,
                 shape: Box::new(Sphere{radius:1000., color:GREEN})
             }
         );        Scene {
@@ -259,9 +278,9 @@ impl Scene {
         }
    }
 
-    fn draw(&self) {
+    fn draw(&self, texture: Texture2D) {
         for body in &self.bodies {
-            body.draw();
+            body.draw(texture);
         }
     }
 }
@@ -269,6 +288,9 @@ impl Scene {
 #[macroquad::main("3D")]
 async fn main() {
     let mut scene = Scene::new();
+
+    let bytes: Vec<u8> = vec![255, 0, 0, 192, 0, 255, 0, 192, 0, 0, 255, 192, 255, 255, 255, 192];
+    let texture = Texture2D::from_rgba8(2, 2, &bytes);
 
     loop {
         scene.update(1.0 / 60.0);
@@ -285,7 +307,7 @@ async fn main() {
 
         draw_grid(20, 1., BLACK, GRAY);
 
-        scene.draw();
+        scene.draw(texture);
         // Back to screen space, render some text
 
         set_default_camera();
