@@ -13,6 +13,8 @@ enum Shape {
 
 trait Shaped {
     fn shape_type(&self) -> Shape;
+    fn get_bounds(&self) -> Bounds;
+    fn get_bounds_pos(&self, pos: Vec3, orient: Quat) -> Bounds;
     fn get_centre_of_mass(&self) -> Vec3;
     fn inertial_tensor(&self) -> Mat3;
     fn radius(&self) -> f32;
@@ -23,6 +25,20 @@ trait Shaped {
 impl Shaped for Sphere {
     fn shape_type(&self) -> Shape {
         Shape::Sphere
+    }
+
+    fn get_bounds(&self) -> Bounds {
+        Bounds {
+            mins: Vec3::splat(-self.radius()),
+            maxs: Vec3::splat(self.radius())
+        }
+    }
+
+    fn get_bounds_pos(&self, pos: Vec3, _: Quat) -> Bounds {
+        Bounds {
+            mins: Vec3::splat(-self.radius()) + pos,
+            maxs: Vec3::splat(self.radius()) + pos
+        }
     }
 
     fn get_centre_of_mass(&self) -> Vec3 {
@@ -137,6 +153,42 @@ impl Body {
 
 struct Scene {
     bodies: Vec<Body>
+}
+
+struct Bounds {
+    mins: Vec3,
+    maxs: Vec3
+}
+
+impl Bounds {
+    fn new() -> Bounds {
+        Bounds {
+            mins: Vec3::splat(1e6),
+            maxs: Vec3::splat(-1e6)
+        }
+    }
+    fn does_intersect(self:&Bounds, other:&Bounds) -> bool {
+        if self.maxs.x < other.mins.x || self.maxs.y < other.mins.y || self.maxs.z < other.mins.z {
+            return false;
+        }
+        if other.maxs.x < self.mins.x || other.maxs.y < self.mins.y || other.maxs.z < self.mins.z {
+            return false;
+        }
+        true
+    }
+    fn expand_vec(&mut self, bounds: &[Bounds]) {
+        for b in bounds {
+            self.expand_bound(b);
+        }
+    }
+    fn expand_bound(&mut self, other: &Bounds) {
+        self.expand(other.mins);
+        self.expand(other.maxs);
+    }
+    fn expand(&mut self, v: Vec3) {
+        self.mins = self.mins.min(v);
+        self.maxs = self.maxs.max(v);
+    }
 }
 
 struct Contact {
