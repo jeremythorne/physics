@@ -309,30 +309,24 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
 impl Scene {
     fn new() -> Scene {
         let mut bodies = Vec::<Body>::new();
-        bodies.push(
-            Body {
-                position: Vec3::new(0., 3., -3.),
-                orientation: Quat::IDENTITY,
-                linear_veclocity: Vec3::new(0., 0., 1000.),
-                angular_veclocity: Vec3::ZERO,
-                inv_mass: 1.,
-                elasticity: 0.,
-                friction: 0.5,
-                shape: Box::new(Sphere{radius:0.5, color:BLUE})
-            }
-        );
-        bodies.push(
-            Body {
-                position: Vec3::new(0., 3., 0.),
-                orientation: Quat::IDENTITY,
-                linear_veclocity: Vec3::ZERO,
-                angular_veclocity: Vec3::ZERO,
-                inv_mass: 0.,
-                elasticity: 0.,
-                friction: 0.5,
-                shape: Box::new(Sphere{radius:0.5, color:RED})
-            }
-        );
+        for i in 0..16 {
+            let x = ((i % 4) as f32) * 2. - 3.;
+            let z = ((i / 4) as f32) * 2. - 3.;
+            let y = 5. + (i % 3) as f32;
+            bodies.push(
+               Body {
+                    position: Vec3::new(z, y, x),
+                    orientation: Quat::IDENTITY,
+                    linear_veclocity: Vec3::new(0., 0., 0.),
+                    angular_veclocity: Vec3::ZERO,
+                    inv_mass: 1.,
+                    elasticity: 0.9,
+                    friction: 0.5,
+                    shape: Box::new(Sphere{radius:0.5, color:BLUE})
+                }
+            );
+        }
+
         bodies.push(
             Body {
                 position: Vec3::new(0., -1000., 0.),
