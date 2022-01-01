@@ -59,7 +59,12 @@ impl Shaped for Sphere {
     }
 
     fn draw(&self, pos: Vec3, texture:Texture2D) {
-        draw_sphere(pos, self.radius, texture, self.color);
+        draw_sphere_ex(pos, self.radius, texture, self.color,
+            DrawSphereParams{
+                rings:2,
+                slices:2,
+                draw_mode:DrawMode::Triangles
+            });
     }
 }
 
@@ -189,6 +194,81 @@ impl Bounds {
         self.mins = self.mins.min(v);
         self.maxs = self.maxs.max(v);
     }
+}
+
+struct PseudoBody {
+    id: usize,
+    value: f32,
+    is_min: bool
+}
+
+fn sort_bodies_bounds(bodies:&[Body], dt_sec:f32) -> Vec<PseudoBody> {
+    let axis = Vec3::new(1., 1., 1.).normalize();
+    let mut sorted = Vec::<PseudoBody>::new();
+
+    for i in 0..bodies.len() {
+        let body = &bodies[i];
+        let mut bounds = body.shape.get_bounds_pos(body.position, body.orientation);
+        bounds.expand(bounds.mins + body.linear_veclocity * dt_sec);
+        bounds.expand(bounds.maxs + body.linear_veclocity * dt_sec);
+        let epsilon = 0.01;
+        bounds.expand(bounds.mins + Vec3::splat(-1.) * epsilon);
+        bounds.expand(bounds.maxs + Vec3::splat(1.) * epsilon);
+
+        sorted.push(PseudoBody{
+            id: i,
+            value: axis.dot(bounds.mins),
+            is_min: true
+        });
+        sorted.push(PseudoBody{
+            id: i,
+            value: axis.dot(bounds.maxs),
+            is_min: false
+        });
+    }
+    sorted.sort_by(|a, b|
+        a.value.partial_cmp(&b.value).unwrap());
+    sorted
+}
+
+#[derive(PartialEq)]
+struct CollisionPair {
+    a: usize,
+    b: usize
+}
+
+fn build_pairs(sorted_bodies:&[PseudoBody]) -> Vec<CollisionPair> {
+    let mut collision_pairs = Vec::<CollisionPair>::new();
+    for i in 0..sorted_bodies.len() {
+        let a = &sorted_bodies[i];
+        if !a.is_min {
+            continue;
+        }
+        for j in i + 1..sorted_bodies.len() {
+            let b = &sorted_bodies[j];
+            if b.id == a.id {
+                // done with a
+                break;
+            }
+            if !b.is_min {
+                continue;
+            }
+            collision_pairs.push(CollisionPair{
+                a: a.id,
+                b: b.id
+            })
+        }
+    }
+    collision_pairs
+}
+
+fn sweep_and_prune_1d(bodies:&[Body], dt_sec:f32) -> Vec<CollisionPair> {
+    let sorted_bodies = sort_bodies_bounds(bodies, dt_sec);
+    build_pairs(&sorted_bodies)
+}
+
+fn broad_phase(bodies:&[Body], dt_sec:f32) -> Vec<CollisionPair> {
+    sweep_and_prune_1d(bodies, dt_sec)
 }
 
 struct Contact {
@@ -360,65 +440,91 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
 
 impl Scene {
     fn new() -> Scene {
+        debug!("Scene::new");
         let mut bodies = Vec::<Body>::new();
-        for i in 0..16 {
-            let x = ((i % 4) as f32) * 2. - 3.;
-            let z = ((i / 4) as f32) * 2. - 3.;
-            let y = 5. + (i % 3) as f32;
-            bodies.push(
-               Body {
-                    position: Vec3::new(z, y, x),
-                    orientation: Quat::IDENTITY,
-                    linear_veclocity: Vec3::new(0., 0., 0.),
-                    angular_veclocity: Vec3::ZERO,
-                    inv_mass: 1.,
-                    elasticity: 0.9,
-                    friction: 0.5,
-                    shape: Box::new(Sphere{radius:0.5, color:BLUE})
-                }
-            );
+        // dynamic bodies
+        for i in 0..6 {
+            for j in 0..6 {
+                let radius = 0.5;
+                let x = ((i - 1) as f32) * radius * 2.5;
+                let z = ((j - 1) as f32) * radius * 2.5;
+                let y = 10.;
+                bodies.push(
+                Body {
+                        position: Vec3::new(z, y, x),
+                        orientation: Quat::IDENTITY,
+                        linear_veclocity: Vec3::ZERO,
+                        angular_veclocity: Vec3::ZERO,
+                        inv_mass: 1.,
+                        elasticity: 0.5,
+                        friction: 0.5,
+                        shape: Box::new(Sphere{radius, color:BLUE})
+                    }
+                );
+            }
         }
 
-        bodies.push(
-            Body {
-                position: Vec3::new(0., -1000., 0.),
-                orientation: Quat::IDENTITY,
-                linear_veclocity: Vec3::ZERO,
-                angular_veclocity: Vec3::ZERO,
-                inv_mass: 0.,
-                elasticity: 1.,
-                friction: 0.5,
-                shape: Box::new(Sphere{radius:1000., color:GREEN})
+        // static "floor"
+        for i in 0..3 {
+            for j in 0..3 {
+                let radius = 80.;
+                let x = ((i - 1) as f32) * radius * 0.25;
+                let z = ((j - 1) as f32) * radius * 0.25;
+                let y = -radius;
+                bodies.push(
+                Body {
+                        position: Vec3::new(z, y, x),
+                        orientation: Quat::IDENTITY,
+                        linear_veclocity: Vec3::ZERO,
+                        angular_veclocity: Vec3::ZERO,
+                        inv_mass: 0.,
+                        elasticity: 0.99,
+                        friction: 0.5,
+                        shape: Box::new(Sphere{radius, color:GREEN})
+                    }
+                );
             }
-        );
+        }
+
         Scene {
             bodies
         }
     }
 
     fn update(&mut self, dt_sec: f32) {
+        debug!("Scene::update");
+        // gravity
+        debug!("gravity");
         for body in &mut self.bodies {
             let mass = 1. / body.inv_mass;
             let impulse_gravity = Vec3::new(0., -10., 0.) * mass * dt_sec;
             body.apply_impluse_linear(impulse_gravity);
         }
-        let n = self.bodies.len();
+        //broadphase
+        debug!("broadphase");
+        let collision_pairs = broad_phase(&self.bodies, dt_sec);
+
+        //narrow phase (perform actual collision detection)
+        debug!("narrow phase");
         let mut contacts = Vec::<Contact>::new();
-        for i in 0..n {
-            for j in i + 1..n {
-                let (a, b) = (&self.bodies[i], &self.bodies[j]);
-                if a.inv_mass == 0. && b.inv_mass == 0. {
-                    continue
-                }
-                if let Some(contact) = intersect(&mut self.bodies[..], i, j, dt_sec) {
-                    contacts.push(contact);
-                }
+        for pair in collision_pairs {
+            // skip body pairs with infinite mass
+            let (a, b) = (&self.bodies[pair.a], &self.bodies[pair.b]);
+            if a.inv_mass == 0. && b.inv_mass == 0. {
+                continue
+            }
+
+            if let Some(contact) = intersect(&mut self.bodies[..], pair.a, pair.b, dt_sec) {
+                contacts.push(contact);
             }
         }
 
+        // sort by increasing time of impact
         contacts.sort_by(|a, b| a.time_of_impact
             .partial_cmp(&b.time_of_impact).unwrap());
 
+        // apply ballistic impulses
+        debug!("ballistic");
         let mut accumulated_time = 0.;
         for contact in &contacts {
             let dt = contact.time_of_impact - accumulated_time;
@@ -426,6 +532,7 @@ impl Scene {
             if a.inv_mass == 0. && b.inv_mass == 0. {
                 continue
             }
+            // position update
             for body in &mut self.bodies {
                 body.update(dt);
             }
@@ -433,6 +540,7 @@ impl Scene {
             accumulated_time += dt;
         }
 
+        // position update for time remaining in this frame
         let time_remaining = dt_sec - accumulated_time;
         for body in &mut self.bodies {
             body.update(time_remaining);
@@ -440,9 +548,11 @@ impl Scene {
    }
 
     fn draw(&self, gl: &mut QuadGl, texture: Texture2D) {
+        debug!("Scene::draw");
         for body in &self.bodies {
             body.draw(gl, texture);
         }
+        debug!("Scene::draw done");
     }
 }
 
@@ -454,6 +564,7 @@ async fn main() {
     let texture = Texture2D::from_rgba8(2, 2, &bytes);
 
     loop {
+        debug!("loop");
         scene.update(1.0 / 60.0);
         clear_background(LIGHTGRAY);
 
