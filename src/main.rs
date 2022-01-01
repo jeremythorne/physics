@@ -294,14 +294,16 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
     bodies[contact.body_b].apply_impulse(pt_on_b, impulse_friction * 1.);
 
 
-    // move colliders to just outside each other but keeping combined centre of
-    // mass constant
-    let (a, b) = (&bodies[contact.body_a], &bodies[contact.body_b]);
-    let ta = a.inv_mass / (a.inv_mass + b.inv_mass);
-    let tb = b.inv_mass / (a.inv_mass + b.inv_mass);
-    let ds = contact.pt_on_b_world_space - contact.pt_on_a_world_space;
-    bodies[contact.body_a].position += ds * ta;
-    bodies[contact.body_b].position -= ds * tb;
+    if contact.time_of_impact == 0. {
+        // move colliders to just outside each other but keeping combined centre
+        // of mass constant
+        let (a, b) = (&bodies[contact.body_a], &bodies[contact.body_b]);
+        let ta = a.inv_mass / (a.inv_mass + b.inv_mass);
+        let tb = b.inv_mass / (a.inv_mass + b.inv_mass);
+        let ds = contact.pt_on_b_world_space - contact.pt_on_a_world_space;
+        bodies[contact.body_a].position += ds * ta;
+        bodies[contact.body_b].position -= ds * tb;
+    }
 }
 
 impl Scene {
@@ -309,14 +311,26 @@ impl Scene {
         let mut bodies = Vec::<Body>::new();
         bodies.push(
             Body {
-                position: Vec3::new(0., 1., 0.),
+                position: Vec3::new(0., 3., -3.),
                 orientation: Quat::IDENTITY,
-                linear_veclocity: Vec3::new(0., 0., 1.),
+                linear_veclocity: Vec3::new(0., 0., 1000.),
                 angular_veclocity: Vec3::ZERO,
                 inv_mass: 1.,
                 elasticity: 0.,
-                friction: 0.9,
-                shape: Box::new(Sphere{radius:1., color:BLUE})
+                friction: 0.5,
+                shape: Box::new(Sphere{radius:0.5, color:BLUE})
+            }
+        );
+        bodies.push(
+            Body {
+                position: Vec3::new(0., 3., 0.),
+                orientation: Quat::IDENTITY,
+                linear_veclocity: Vec3::ZERO,
+                angular_veclocity: Vec3::ZERO,
+                inv_mass: 0.,
+                elasticity: 0.,
+                friction: 0.5,
+                shape: Box::new(Sphere{radius:0.5, color:RED})
             }
         );
         bodies.push(
@@ -330,7 +344,8 @@ impl Scene {
                 friction: 0.5,
                 shape: Box::new(Sphere{radius:1000., color:GREEN})
             }
-        );        Scene {
+        );
+        Scene {
             bodies
         }
     }
@@ -342,6 +357,7 @@ impl Scene {
             body.apply_impluse_linear(impulse_gravity);
         }
         let n = self.bodies.len();
+        let mut contacts = Vec::<Contact>::new();
         for i in 0..n {
             for j in i + 1..n {
                 let (a, b) = (&self.bodies[i], &self.bodies[j]);
@@ -349,13 +365,31 @@ impl Scene {
                     continue
                 }
                 if let Some(contact) = intersect(&mut self.bodies[..], i, j, dt_sec) {
-                    resolve_contact(&mut self.bodies[..], &contact);
+                    contacts.push(contact);
                 }
             }
         }
 
+        contacts.sort_by(|a, b| a.time_of_impact
+            .partial_cmp(&b.time_of_impact).unwrap());
+
+        let mut accumulated_time = 0.;
+        for contact in &contacts {
+            let dt = contact.time_of_impact - accumulated_time;
+            let (a, b) = (&self.bodies[contact.body_a], &self.bodies[contact.body_b]);
+            if a.inv_mass == 0. && b.inv_mass == 0. {
+                continue
+            }
+            for body in &mut self.bodies {
+                body.update(dt);
+            }
+            resolve_contact(&mut self.bodies[..], &contact);
+            accumulated_time += dt;
+        }
+
+        let time_remaining = dt_sec - accumulated_time;
         for body in &mut self.bodies {
-            body.update(dt_sec);
+            body.update(time_remaining);
         }
    }
 
