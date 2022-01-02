@@ -473,8 +473,8 @@ impl Scene {
         for i in 0..6 {
             for j in 0..6 {
                 let radius = 0.5;
-                let x = ((i - 1) as f32) * radius * 2.5;
-                let z = ((j - 1) as f32) * radius * 2.5;
+                let x = ((i - 1) as f32) * radius * 1.5;
+                let z = ((j - 1) as f32) * radius * 1.5;
                 let y = 10.;
                 bodies.push(
                 Body {

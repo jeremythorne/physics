@@ -68,7 +68,7 @@ impl Stage {
         let main_bind = bind.clone();
 
         let copy = copy_pipe(ctx, main.get_output());
-        let scene = engine::Scene::new_simple();
+        let scene = engine::Scene::new_many();
  
         Stage {
             main,
@@ -96,7 +96,7 @@ impl EventHandler for Stage {
         let (width, height) = ctx.screen_size();
         let proj = Mat4::perspective_rh_gl(45.0f32.to_radians(), width / height, 0.01, 100.0);
         let view = Mat4::look_at_rh(
-            vec3(0.0, 20.0, 35.0),
+            vec3(35.0, 20.0, 35.0),
             vec3(0.0, 0.0, 0.0),
             vec3(0.0, 1.0, 0.0),
         );
