@@ -68,7 +68,7 @@ impl Stage {
         let main_bind = bind.clone();
 
         let copy = copy_pipe(ctx, main.get_output());
-        let scene = engine::Scene::new_many();
+        let scene = engine::Scene::new_cover();
  
         Stage {
             main,

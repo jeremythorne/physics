@@ -467,6 +467,59 @@ impl Scene {
         }
     }
 
+    pub fn new_cover() -> Scene {
+        let mut bodies = Vec::<Body>::new();
+        // dynamic bodies
+        for i in 0..6 {
+            for j in 0..6 {
+                for k in 0..6 {
+                    let radius = 0.5;
+                    let x = ((i - 1) as f32) * radius * 1.5;
+                    let z = ((j - 1) as f32) * radius * 1.5;
+                    let y = 10. + radius * 1.5 * k as f32;
+                    bodies.push(
+                    Body {
+                            position: Vec3::new(z, y, x),
+                            orientation: Quat::IDENTITY,
+                            linear_veclocity: Vec3::ZERO,
+                            angular_veclocity: Vec3::ZERO,
+                            inv_mass: 1.,
+                            elasticity: 0.5,
+                            friction: 0.5,
+                            shape: Box::new(Sphere{radius})
+                        }
+                    );
+                }
+            }
+        }
+
+        // static "floor"
+        for i in 0..3 {
+            for j in 0..3 {
+                let radius = 80.;
+                let x = ((i - 1) as f32) * radius * 0.25;
+                let z = ((j - 1) as f32) * radius * 0.25;
+                let y = -radius;
+                bodies.push(
+                Body {
+                        position: Vec3::new(z, y, x),
+                        orientation: Quat::IDENTITY,
+                        linear_veclocity: Vec3::ZERO,
+                        angular_veclocity: Vec3::ZERO,
+                        inv_mass: 0.,
+                        elasticity: 0.99,
+                        friction: 0.5,
+                        shape: Box::new(Sphere{radius})
+                    }
+                );
+            }
+        }
+
+        Scene {
+            bodies
+        }
+    }
+
     pub fn new_many() -> Scene {
         let mut bodies = Vec::<Body>::new();
         // dynamic bodies
