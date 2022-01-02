@@ -98,7 +98,7 @@ impl MainPipe {
         model: &Mat4, view_proj: &Mat4, light_view_proj: &Mat4) {
         ctx.begin_pass(
             self.pass,
-            PassAction::clear_color(0.0, 0.0, 0.0, 0.0),
+            PassAction::clear_color(0.1, 0.1, 0.1, 0.0),
         );
         ctx.apply_pipeline(&self.pipe);
         ctx.apply_bindings(bind);

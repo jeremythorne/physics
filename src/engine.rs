@@ -1,7 +1,6 @@
 use glam::{Vec3, Mat3, Mat4, Quat};
 use std::cmp::Ordering;
 use std::any::Any;
-use crate::objects::{Object};
 
 struct Sphere {
     radius: f32,
@@ -423,7 +422,50 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
 }
 
 impl Scene {
-    pub fn new() -> Scene {
+    pub fn new_simple() -> Scene {
+        let mut bodies = Vec::<Body>::new();
+        // dynamic bodies
+        let radius = 2.0;
+        let x = 0.;
+        let z = 0.;
+        let y = 10.;
+        bodies.push(
+            Body {
+                position: Vec3::new(z, y, x),
+                orientation: Quat::IDENTITY,
+                linear_veclocity: Vec3::ZERO,
+                angular_veclocity: Vec3::ZERO,
+                inv_mass: 1.0,
+                elasticity: 1.,
+                friction: 0.5,
+                shape: Box::new(Sphere{radius})
+            }
+        );
+
+
+        // static "floor"
+        let radius = 100.;
+        let x = 0.;
+        let z = 0.;
+        let y = -radius;
+        bodies.push(
+            Body {
+                position: Vec3::new(z, y, x),
+                orientation: Quat::IDENTITY,
+                linear_veclocity: Vec3::ZERO,
+                angular_veclocity: Vec3::ZERO,
+                inv_mass: 0.,
+                elasticity: 1.,
+                friction: 0.5,
+                shape: Box::new(Sphere{radius})
+            }
+        );
+        Scene {
+            bodies
+        }
+    }
+
+    pub fn new_many() -> Scene {
         let mut bodies = Vec::<Body>::new();
         // dynamic bodies
         for i in 0..6 {
@@ -525,17 +567,13 @@ impl Scene {
         }
    }
 
-    pub fn drawables(&self) -> Vec<Object> {
-        let mut objects = Vec::<Object>::new();
+    pub fn drawables(&self) -> Vec<Mat4> {
+        let mut objects = Vec::<Mat4>::new();
         for body in &self.bodies {
             let rot = Mat4::from_quat(body.orientation);
-            let scale = Mat4::from_scale(Vec3::splat(body.shape.radius() * 0.5));
+            let scale = Mat4::from_scale(Vec3::splat(body.shape.radius()));
             let trans = Mat4::from_translation(body.position);
-            objects.push(Object {
-                model: rot * trans * scale,
-                start: 0,
-                end: 36
-            });
+            objects.push(trans * rot * scale);
         }
         objects
     }

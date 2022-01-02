@@ -7,6 +7,7 @@ mod objects;
 mod engine;
 
 use main_pipe::MainPipe;
+use objects::Object;
 use physics::quad_verts;
 
 struct PipeBind {
@@ -17,6 +18,7 @@ struct PipeBind {
 struct Stage {
     main: MainPipe,
     main_bind: Bindings,
+    verts_per_draw: u16,
     copy: PipeBind,
     scene: engine::Scene,
     rx: f32,
@@ -60,17 +62,18 @@ fn copy_pipe(ctx: &mut Context, tex:Texture) -> PipeBind {
 
 impl Stage {
     pub fn new(ctx: &mut Context) -> Stage {
-        let bind = objects::cube_bindings(ctx);
+        let (bind, verts_per_draw) = objects::sphere_bindings(ctx);
 
         let main = MainPipe::new(ctx);
         let main_bind = bind.clone();
 
         let copy = copy_pipe(ctx, main.get_output());
-        let scene = engine::Scene::new();
+        let scene = engine::Scene::new_simple();
  
         Stage {
             main,
             main_bind,
+            verts_per_draw,
             copy,
             scene,
             rx: 0.,
@@ -112,9 +115,18 @@ impl EventHandler for Stage {
         let model = Mat4::from_euler(EulerRot::YXZ, self.ry, self.rx, 0.);
 
         //let (w, h) = ctx.screen_size();
-        
+       
+        let matrices = self.scene.drawables();
+        let mut objects = Vec::<Object>::new();
+        for m in matrices {
+            objects.push(Object {
+                model: m,
+                start: 0,
+                end: self.verts_per_draw as i32,
+            })
+        }
         self.main.draw(ctx, &self.main_bind,
-            &self.scene.drawables(), 
+            &objects, 
             &model, &view_proj, &light_view_proj);
 
         let output = &self.copy;
