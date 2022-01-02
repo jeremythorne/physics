@@ -1,6 +1,7 @@
 use glam::{Vec3, Mat3, Mat4, Quat};
 use std::cmp::Ordering;
 use std::any::Any;
+use std::fmt::Debug;
 
 struct Sphere {
     radius: f32,
@@ -58,14 +59,14 @@ impl Shaped for Sphere {
     }
 }
 
-struct Body {
-    position: Vec3,
-    orientation: Quat,
-    linear_veclocity: Vec3,
-    angular_veclocity: Vec3,
-    inv_mass: f32,
-    elasticity: f32,
-    friction: f32,
+pub struct Body {
+    pub position: Vec3,
+    pub orientation: Quat,
+    pub linear_veclocity: Vec3,
+    pub angular_veclocity: Vec3,
+    pub inv_mass: f32,
+    pub elasticity: f32,
+    pub friction: f32,
     shape: Box<dyn Shaped>
 }
 
@@ -140,7 +141,7 @@ impl Body {
 }
 
 pub struct Scene {
-    bodies: Vec<Body>
+    pub bodies: Vec<Body>
 }
 
 struct Bounds {
@@ -254,6 +255,7 @@ fn broad_phase(bodies:&[Body], dt_sec:f32) -> Vec<CollisionPair> {
     sweep_and_prune_1d(bodies, dt_sec)
 }
 
+#[derive(Debug)]
 struct Contact {
     pt_on_a_world_space: Vec3,
     pt_on_b_world_space: Vec3,
@@ -394,7 +396,7 @@ fn resolve_contact(bodies: &mut[Body], contact: &Contact) {
         let friction = a.friction * b.friction;
         let vel_norm = n * n.dot(vab);
         let vel_tang = vab - vel_norm;
-        let relative_vel_tang = vel_tang.normalize();
+        let relative_vel_tang = vel_tang.normalize_or_zero();
 
         let inertia_a = (inv_world_inertia_a * ra.cross(relative_vel_tang)).cross(ra);
         let inertia_b = (inv_world_inertia_b * rb.cross(relative_vel_tang)).cross(rb);

@@ -96,7 +96,7 @@ impl EventHandler for Stage {
         let (width, height) = ctx.screen_size();
         let proj = Mat4::perspective_rh_gl(45.0f32.to_radians(), width / height, 0.01, 100.0);
         let view = Mat4::look_at_rh(
-            vec3(0.0, 20.0, 15.0),
+            vec3(0.0, 20.0, 35.0),
             vec3(0.0, 0.0, 0.0),
             vec3(0.0, 1.0, 0.0),
         );
@@ -141,7 +141,28 @@ impl EventHandler for Stage {
     }
 }
 
+fn null_render() {
+    let mut scene = engine::Scene::new_simple();
+    let mut t = 0.;
+    let dt = 1./60.;
+    loop {
+        scene.update(dt);
+        t += dt;
+        println!("time: {}s", t);
+        for (i, body) in scene.bodies.iter().enumerate() {
+            println!("{}: {} {} {} {} {} {} {}", i, body.position,
+                body.orientation,
+                body.linear_veclocity,
+                body.angular_veclocity,
+                body.inv_mass,
+                body.elasticity,
+                body.friction);
+        }
+    }
+}
+
 fn main() {
+//    null_render();
     miniquad::start(conf::Conf::default(), |mut ctx| {
         UserData::owning(Stage::new(&mut ctx), ctx)
     });
