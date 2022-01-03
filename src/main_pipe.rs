@@ -104,8 +104,9 @@ impl MainPipe {
         ctx.apply_bindings(bind);
         for obj in objects.iter() {
             ctx.apply_uniforms(&Uniforms {
-                mvp: *view_proj * *model * obj.model,
-                light_mvp: *light_view_proj * *model * obj.model,
+                mvp: *view_proj * *model * obj.drawable.model,
+                light_mvp: *light_view_proj * *model * obj.drawable.model,
+                color: obj.drawable.color,
             });
             ctx.draw(obj.start, obj.end, 1);
         }
@@ -121,16 +122,17 @@ const VERTEX: &str = r#"#version 100
 attribute vec4 pos;
 attribute vec4 color0;
 
-varying vec4 color;
+varying vec4 vcolor;
 varying vec4 light_pos;
 
 uniform mat4 mvp;
 uniform mat4 light_mvp;
+uniform vec4 color;
 
 void main() {
     gl_Position = mvp * pos;
     light_pos = light_mvp * pos;
-    color = color0;
+    vcolor = color0 * color;
 }
 "#;
 
@@ -138,12 +140,12 @@ const FRAGMENT: &str = r#"#version 100
 
 precision mediump float;
 
-varying vec4 color;
+varying vec4 vcolor;
 varying vec4 light_pos;
 
 void main() {
     float ambient = 0.5;
-    gl_FragColor = color * clamp(ambient, 0.0, 1.0);
+    gl_FragColor = vcolor * clamp(ambient, 0.0, 1.0);
 }
 "#;
 
@@ -153,7 +155,8 @@ fn meta() -> ShaderMeta {
         uniforms: UniformBlockLayout {
             uniforms: vec![
                 UniformDesc::new("mvp", UniformType::Mat4),
-                UniformDesc::new("light_mvp", UniformType::Mat4)
+                UniformDesc::new("light_mvp", UniformType::Mat4),
+                UniformDesc::new("color", UniformType::Float4)
             ]
         },
     }
@@ -163,4 +166,5 @@ fn meta() -> ShaderMeta {
 pub struct Uniforms {
     pub mvp: glam::Mat4,
     pub light_mvp: glam::Mat4,
+    pub color: glam::Vec4,
 }

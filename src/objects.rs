@@ -2,8 +2,13 @@ use miniquad::*;
 
 use glam::{Vec2, Vec3, Vec4, Mat4};
 
-pub struct Object {
+pub struct Drawable {
     pub model:Mat4,
+    pub color:Vec4,
+}
+
+pub struct Object {
+    pub drawable:Drawable,
     pub start:i32,
     pub end:i32
 }

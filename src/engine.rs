@@ -1,10 +1,12 @@
-use glam::{Vec3, Mat3, Mat4, Quat};
+use glam::{Vec3, Vec4, Mat3, Mat4, Quat};
 use std::cmp::Ordering;
 use std::any::Any;
 use std::fmt::Debug;
+use crate::objects::Drawable;
 
 struct Sphere {
     radius: f32,
+    color: Vec4,
 }
 
 #[derive(PartialEq)]
@@ -14,6 +16,7 @@ enum Shape {
 
 trait Shaped {
     fn shape_type(&self) -> Shape;
+    fn color(&self) -> Vec4;
     fn get_bounds(&self) -> Bounds;
     fn get_bounds_pos(&self, pos: Vec3, orient: Quat) -> Bounds;
     fn get_centre_of_mass(&self) -> Vec3;
@@ -25,6 +28,10 @@ trait Shaped {
 impl Shaped for Sphere {
     fn shape_type(&self) -> Shape {
         Shape::Sphere
+    }
+
+    fn color(&self) -> Vec4 {
+        self.color
     }
 
     fn get_bounds(&self) -> Bounds {
@@ -431,6 +438,7 @@ impl Scene {
         let x = 0.;
         let z = 0.;
         let y = 10.;
+        let color = Vec4::new(1.0, 0.2, 0.2, 1.0);
         bodies.push(
             Body {
                 position: Vec3::new(z, y, x),
@@ -440,7 +448,7 @@ impl Scene {
                 inv_mass: 1.0,
                 elasticity: 1.,
                 friction: 0.5,
-                shape: Box::new(Sphere{radius})
+                shape: Box::new(Sphere{radius, color})
             }
         );
 
@@ -450,6 +458,7 @@ impl Scene {
         let x = 0.;
         let z = 0.;
         let y = -radius;
+        let color = Vec4::new(0.2, 1.0, 0.2, 1.0);
         bodies.push(
             Body {
                 position: Vec3::new(z, y, x),
@@ -459,7 +468,7 @@ impl Scene {
                 inv_mass: 0.,
                 elasticity: 1.,
                 friction: 0.5,
-                shape: Box::new(Sphere{radius})
+                shape: Box::new(Sphere{radius, color})
             }
         );
         Scene {
@@ -477,6 +486,7 @@ impl Scene {
                     let x = ((i - 1) as f32) * radius * 1.5;
                     let z = ((j - 1) as f32) * radius * 1.5;
                     let y = 10. + radius * 1.5 * k as f32;
+                    let color = Vec4::new(1.0, 0.2, 0.2, 1.0);
                     bodies.push(
                     Body {
                             position: Vec3::new(z, y, x),
@@ -486,7 +496,7 @@ impl Scene {
                             inv_mass: 1.,
                             elasticity: 0.5,
                             friction: 0.5,
-                            shape: Box::new(Sphere{radius})
+                            shape: Box::new(Sphere{radius, color})
                         }
                     );
                 }
@@ -500,6 +510,7 @@ impl Scene {
                 let x = ((i - 1) as f32) * radius * 0.25;
                 let z = ((j - 1) as f32) * radius * 0.25;
                 let y = -radius;
+                let color = Vec4::new(0.2, 1.0, 0.2, 1.0);
                 bodies.push(
                 Body {
                         position: Vec3::new(z, y, x),
@@ -509,7 +520,7 @@ impl Scene {
                         inv_mass: 0.,
                         elasticity: 0.99,
                         friction: 0.5,
-                        shape: Box::new(Sphere{radius})
+                        shape: Box::new(Sphere{radius, color})
                     }
                 );
             }
@@ -529,6 +540,7 @@ impl Scene {
                 let x = ((i - 1) as f32) * radius * 1.5;
                 let z = ((j - 1) as f32) * radius * 1.5;
                 let y = 10.;
+                let color = Vec4::new(1.0, 0.2, 0.2, 1.0);
                 bodies.push(
                 Body {
                         position: Vec3::new(z, y, x),
@@ -538,7 +550,7 @@ impl Scene {
                         inv_mass: 1.,
                         elasticity: 0.5,
                         friction: 0.5,
-                        shape: Box::new(Sphere{radius})
+                        shape: Box::new(Sphere{radius, color})
                     }
                 );
             }
@@ -551,6 +563,7 @@ impl Scene {
                 let x = ((i - 1) as f32) * radius * 0.25;
                 let z = ((j - 1) as f32) * radius * 0.25;
                 let y = -radius;
+                let color = Vec4::new(0.2, 1.0, 0.2, 1.0);
                 bodies.push(
                 Body {
                         position: Vec3::new(z, y, x),
@@ -560,7 +573,7 @@ impl Scene {
                         inv_mass: 0.,
                         elasticity: 0.99,
                         friction: 0.5,
-                        shape: Box::new(Sphere{radius})
+                        shape: Box::new(Sphere{radius, color})
                     }
                 );
             }
@@ -622,13 +635,16 @@ impl Scene {
         }
    }
 
-    pub fn drawables(&self) -> Vec<Mat4> {
-        let mut objects = Vec::<Mat4>::new();
+    pub fn drawables(&self) -> Vec<Drawable> {
+        let mut objects = Vec::<Drawable>::new();
         for body in &self.bodies {
             let rot = Mat4::from_quat(body.orientation);
             let scale = Mat4::from_scale(Vec3::splat(body.shape.radius()));
             let trans = Mat4::from_translation(body.position);
-            objects.push(trans * rot * scale);
+            objects.push(Drawable {
+                model: trans * rot * scale,
+                color: body.shape.color()
+            });
         }
         objects
     }

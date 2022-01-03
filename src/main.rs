@@ -94,7 +94,7 @@ impl EventHandler for Stage {
 
     fn draw(&mut self, ctx: &mut Context) {
         let (width, height) = ctx.screen_size();
-        let proj = Mat4::perspective_rh_gl(45.0f32.to_radians(), width / height, 0.01, 100.0);
+        let proj = Mat4::perspective_rh_gl(45.0f32.to_radians(), width / height, 1.0, 100.0);
         let view = Mat4::look_at_rh(
             vec3(35.0, 20.0, 35.0),
             vec3(0.0, 0.0, 0.0),
@@ -116,11 +116,11 @@ impl EventHandler for Stage {
 
         //let (w, h) = ctx.screen_size();
        
-        let matrices = self.scene.drawables();
+        let drawables = self.scene.drawables();
         let mut objects = Vec::<Object>::new();
-        for m in matrices {
+        for m in drawables {
             objects.push(Object {
-                model: m,
+                drawable: m,
                 start: 0,
                 end: self.verts_per_draw as i32,
             })
