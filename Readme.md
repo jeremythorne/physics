@@ -1,4 +1,4 @@
-an implenmentation of [Game Physics in One Weekend](https://gamephysicsweekend.github.io/) in Rust
+an implementation of [Game Physics in One Weekend](https://gamephysicsweekend.github.io/) in Rust
 
 using [Miniquad](https://github.com/not-fl3/miniquad) for rendering
 
